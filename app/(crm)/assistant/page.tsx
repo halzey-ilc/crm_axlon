@@ -16,7 +16,7 @@ type AssistantPageProps = PageProps<"/assistant">
 async function AssistantContent({ searchParams }: Pick<AssistantPageProps, "searchParams">) {
   const [user, params] = await Promise.all([getCurrentUser(), searchParams])
   if (hasPermission(user.role, "platform.manage")) redirect(homeRouteFor(user.role))
-  return <AssistantView params={params} />
+  return <AssistantView params={params} role={user.role} />
 }
 
 export default function AssistantPage({ searchParams }: AssistantPageProps) {

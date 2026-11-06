@@ -6,6 +6,7 @@ import { Check, Copy, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { ReplyDraft } from "@/features/ai-insights/components/reply-draft"
 import type { MessageTemplate } from "@/features/communications/api/communications-repository"
 
 type MessageComposerProps = {
@@ -13,13 +14,15 @@ type MessageComposerProps = {
   templates: readonly Pick<MessageTemplate, "id" | "title" | "body">[]
   /** Почему отправка из CRM недоступна. null — канал подключён (отправка из карточки пока не реализована) */
   sendBlockedReason: string | null
+  /** Показывать черновик ИИ: модель подключена и у роли есть право */
+  aiAvailable?: boolean
 }
 
 /**
  * Поле ответа с шаблонами. Пока у канала нет провайдера, отправка выключена:
  * текст можно собрать из шаблона и скопировать, чтобы отправить в приложении мессенджера.
  */
-export function MessageComposer({ conversationId, templates, sendBlockedReason }: MessageComposerProps) {
+export function MessageComposer({ conversationId, templates, sendBlockedReason, aiAvailable = false }: MessageComposerProps) {
   const [text, setText] = useState("")
   const [copied, setCopied] = useState(false)
   const textId = `composer-${conversationId}`
@@ -60,6 +63,15 @@ export function MessageComposer({ conversationId, templates, sendBlockedReason }
           </select>
         )}
       </div>
+      {aiAvailable && (
+        <ReplyDraft
+          conversationId={conversationId}
+          onInsert={(draft) => {
+            setText(draft)
+            setCopied(false)
+          }}
+        />
+      )}
       <Textarea
         id={textId}
         rows={3}

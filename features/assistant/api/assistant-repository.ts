@@ -31,6 +31,8 @@ export const runSchema = z.object({
   actions: z.array(actionSchema),
   /** Несколько подходящих сделок: пользователь выбирает, помощник не угадывает */
   choices: z.array(choiceSchema).default([]),
+  /** Строки ответа, посчитанного CRM; ref — запись, на которую ведёт строка */
+  items: z.array(z.object({ title: z.string(), ref: z.string().nullable() })).default([]),
   isMock: z.boolean(),
   provider: z.string().nullable(),
   model: z.string().nullable(),

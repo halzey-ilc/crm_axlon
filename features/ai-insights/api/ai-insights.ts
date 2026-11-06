@@ -99,3 +99,59 @@ export function fetchDealBrief(auth: ApiAuth, dealId: string): Promise<DealBrief
 export function requestDealBrief(auth: ApiAuth, dealId: string): Promise<DealBrief> {
   return apiRequest(dealPath(dealId), { method: "POST", auth, body: {}, schema: dealBriefSchema })
 }
+
+const textSchema = z.object({ text: z.string() })
+
+export const replySuggestionSchema = z.object({
+  ...jobFields,
+  result: z
+    .object({
+      draftReply: z.string().nullable(),
+      needsHuman: z.boolean(),
+      urgency: z.enum(["low", "normal", "high"]),
+    })
+    .nullable(),
+})
+
+/** Отчёты ИИ: разные поля у разных видов, для показа достаточно заголовка и пунктов */
+export const aiReportSchema = z.object({
+  ...jobFields,
+  result: z
+    .object({
+      headline: z.string(),
+      items: z.array(textSchema).default([]),
+      observations: z.array(textSchema).default([]),
+      recommendations: z.array(textSchema).default([]),
+      checks: z.array(textSchema).default([]),
+      insufficientData: z.boolean(),
+    })
+    .nullable(),
+})
+
+export type ReplySuggestion = z.infer<typeof replySuggestionSchema>
+export type AiReport = z.infer<typeof aiReportSchema>
+export type AiReportKind = "kpi" | "risk" | "digest"
+
+const REPORT_PATHS: Record<AiReportKind, string> = {
+  kpi: "/api/v1/ai/analytics/kpi-explanation/",
+  risk: "/api/v1/ai/risk/review/",
+  digest: "/api/v1/ai/operations/digest/",
+}
+
+const replyPath = (conversationId: string) => `/api/v1/ai/conversations/${encodeURIComponent(conversationId)}/reply/`
+
+export function fetchReplySuggestion(auth: ApiAuth, conversationId: string): Promise<ReplySuggestion | null> {
+  return latest(() => apiRequest(replyPath(conversationId), { auth, schema: replySuggestionSchema }))
+}
+
+export function requestReplySuggestion(auth: ApiAuth, conversationId: string): Promise<ReplySuggestion> {
+  return apiRequest(replyPath(conversationId), { method: "POST", auth, body: {}, schema: replySuggestionSchema })
+}
+
+export function fetchAiReport(auth: ApiAuth, kind: AiReportKind): Promise<AiReport | null> {
+  return latest(() => apiRequest(REPORT_PATHS[kind], { auth, schema: aiReportSchema }))
+}
+
+export function requestAiReport(auth: ApiAuth, kind: AiReportKind): Promise<AiReport> {
+  return apiRequest(REPORT_PATHS[kind], { method: "POST", auth, body: {}, schema: aiReportSchema })
+}

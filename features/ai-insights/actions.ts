@@ -1,6 +1,20 @@
 "use server"
 
-import { fetchCallSummary, fetchDealBrief, requestCallSummary, requestDealBrief, type CallSummary, type DealBrief } from "@/features/ai-insights/api/ai-insights"
+import {
+  fetchAiReport,
+  fetchCallSummary,
+  fetchDealBrief,
+  fetchReplySuggestion,
+  requestAiReport,
+  requestCallSummary,
+  requestDealBrief,
+  requestReplySuggestion,
+  type AiReport,
+  type AiReportKind,
+  type CallSummary,
+  type DealBrief,
+  type ReplySuggestion,
+} from "@/features/ai-insights/api/ai-insights"
 import { ApiError, apiErrorMessage } from "@/lib/api/errors"
 import { getActionAuth } from "@/lib/auth/token-store"
 
@@ -32,4 +46,20 @@ export async function requestDealBriefAction(dealId: string): Promise<AiActionRe
 
 export async function getDealBriefAction(dealId: string): Promise<AiActionResult<DealBrief | null>> {
   return run(async () => fetchDealBrief(await getActionAuth(), dealId))
+}
+
+export async function requestReplySuggestionAction(conversationId: string): Promise<AiActionResult<ReplySuggestion>> {
+  return run(async () => requestReplySuggestion(await getActionAuth(), conversationId))
+}
+
+export async function getReplySuggestionAction(conversationId: string): Promise<AiActionResult<ReplySuggestion | null>> {
+  return run(async () => fetchReplySuggestion(await getActionAuth(), conversationId))
+}
+
+export async function requestAiReportAction(kind: AiReportKind): Promise<AiActionResult<AiReport>> {
+  return run(async () => requestAiReport(await getActionAuth(), kind))
+}
+
+export async function getAiReportAction(kind: AiReportKind): Promise<AiActionResult<AiReport | null>> {
+  return run(async () => fetchAiReport(await getActionAuth(), kind))
 }

@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { isMockDataSource } from "@/config/env"
+import { fetchAiAvailable } from "@/features/ai-insights/api/ai-insights"
 import {
   CHANNEL_LABELS,
   fetchChannels,
@@ -43,10 +44,11 @@ export async function ClientConversations({ customerId }: { customerId: string }
     return <EmptyState icon={MessagesSquare} title="Переписка хранится на сервере" description="В демо-режиме диалогов нет." />
   }
   const auth = await getRenderAuth()
-  const [conversations, templates, channels] = await Promise.all([
+  const [conversations, templates, channels, aiAvailable] = await Promise.all([
     tryLoad(() => fetchCustomerConversations(auth, customerId)),
     tryLoad(() => fetchTemplates(auth)),
     tryLoad(() => fetchChannels(auth)),
+    fetchAiAvailable(),
   ])
   if (!conversations.ok) return <ApiErrorState error={conversations.error} bare />
   if (conversations.data.items.length === 0) {
@@ -75,7 +77,12 @@ export async function ClientConversations({ customerId }: { customerId: string }
           </summary>
           <div className="space-y-3 px-3 pb-3">
             {messages.ok ? <MessageList messages={messages.data} /> : <ApiErrorState error={messages.error} bare />}
-            <MessageComposer conversationId={conversation.id} templates={pickTemplates(templateList)} sendBlockedReason={sendBlockedReason(channelStates, conversation)} />
+            <MessageComposer
+              conversationId={conversation.id}
+              templates={pickTemplates(templateList)}
+              sendBlockedReason={sendBlockedReason(channelStates, conversation)}
+              aiAvailable={aiAvailable}
+            />
           </div>
         </details>
       ))}

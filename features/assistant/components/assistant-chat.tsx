@@ -9,7 +9,7 @@ import { StatusBadge, type StatusTone } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { routes } from "@/config/routes"
+import { leadRoute, routes } from "@/config/routes"
 import { askAssistantAction, decideAssistantAction, getAssistantRunAction } from "@/features/assistant/actions"
 import { LOCAL_PROVIDER, type AssistantAction, type AssistantChoice, type AssistantRun, type RunContext } from "@/features/assistant/api/assistant-repository"
 import { actionError, actionFields, TOOL_LABELS } from "@/features/assistant/labels"
@@ -243,6 +243,21 @@ function RunCard({
           )}
           <p className="text-sm whitespace-pre-line">{run.summary}</p>
         </div>
+      )}
+      {run.items.length > 0 && (
+        <ul className="space-y-1 text-sm">
+          {run.items.map((item) => (
+            <li key={item.ref ?? item.title}>
+              {item.ref?.startsWith("deal:") ? (
+                <Link href={leadRoute(item.ref.slice("deal:".length))} className="text-primary hover:underline">
+                  {item.title}
+                </Link>
+              ) : (
+                item.title
+              )}
+            </li>
+          ))}
+        </ul>
       )}
       {run.choices.length > 0 && (
         <div className="flex flex-wrap gap-2">
