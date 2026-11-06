@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Check, LoaderCircle, MessageSquarePlus, Send, Sparkles, X } from "lucide-react"
+import { ArrowRight, Check, LoaderCircle, MessageSquarePlus, Send, Sparkles, X } from "lucide-react"
 
 import { StatusBadge, type StatusTone } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { leadRoute, routes } from "@/config/routes"
 import { askAssistantAction, decideAssistantAction, getAssistantRunAction } from "@/features/assistant/actions"
 import { LOCAL_PROVIDER, type AssistantAction, type AssistantChoice, type AssistantRun, type RunContext } from "@/features/assistant/api/assistant-repository"
-import { actionError, actionFields, TOOL_LABELS } from "@/features/assistant/labels"
+import { actionChange, actionError, actionFields, TOOL_LABELS, type ActionChange } from "@/features/assistant/labels"
 import { formatDateTime } from "@/lib/format"
 
 const POLL_MS = 4000
@@ -205,6 +205,19 @@ export function AssistantChat({ initialRun, initialError }: { initialRun: Assist
   )
 }
 
+/** Что изменится: подтверждение без «было → станет» ничего бы не значило */
+function ChangeLine({ change }: { change: ActionChange | null }) {
+  if (!change) return null
+  return (
+    <p className="flex flex-wrap items-center gap-1.5 text-sm">
+      <span className="text-muted-foreground">{change.label}:</span>
+      <span className="line-through decoration-muted-foreground/60">{change.before}</span>
+      <ArrowRight className="size-3.5 text-muted-foreground" aria-label="станет" />
+      <span className="font-medium">{change.after}</span>
+    </p>
+  )
+}
+
 function RunCard({
   run,
   isPending,
@@ -279,7 +292,8 @@ function RunCard({
                   <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
                 </div>
                 {action.reason && <p className="text-meta text-muted-foreground">{action.reason}</p>}
-                {action.args && Object.keys(action.args).length > 0 && (
+                <ChangeLine change={actionChange(action.args)} />
+                {actionFields(action.args).length > 0 && (
                   <dl className="grid grid-cols-[auto_1fr] gap-x-3 text-meta">
                     {actionFields(action.args).map((field) => (
                       <div key={field.key} className="contents">

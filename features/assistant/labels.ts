@@ -6,6 +6,20 @@ export const TOOL_LABELS: Record<string, string> = {
   request_deal_brief: "Запросить сводку по сделке",
   schedule_meeting: "Назначить встречу",
   move_deal_stage: "Перенести сделку на этап",
+  update_deal_amount: "Изменить сумму сделки",
+  change_deal_owner: "Сменить ответственного",
+  update_plan: "Изменить план",
+  record_meeting_outcome: "Записать итог встречи",
+}
+
+/** Служебные значения изменения: пользователю показывается «было → станет» */
+const HIDDEN_ARGS = new Set(["change", "amount", "owner_user_id", "scope", "scope_id", "metric", "period", "target", "outcome"])
+
+export type ActionChange = { label: string; before: string; after: string }
+
+export function actionChange(args: Record<string, unknown> | null | undefined): ActionChange | null {
+  const change = args?.change as Partial<ActionChange> | undefined
+  return change?.label && change.before !== undefined && change.after !== undefined ? (change as ActionChange) : null
 }
 
 const ARG_LABELS: Record<string, string> = {
@@ -15,6 +29,7 @@ const ARG_LABELS: Record<string, string> = {
   start: "Начало",
   duration_minutes: "Длительность",
   stage: "Этап",
+  comment: "Комментарий",
 }
 
 const ACTION_ERRORS: Record<string, string> = {
@@ -48,7 +63,9 @@ function formatArg(key: string, value: unknown): string {
 
 /** Поля действия для показа: подпись и значение; неизвестное поле показывается под своим именем */
 export function actionFields(args: Record<string, unknown> | null | undefined): { key: string; label: string; value: string }[] {
-  return Object.entries(args ?? {}).map(([key, value]) => ({ key, label: ARG_LABELS[key] ?? key, value: formatArg(key, value) }))
+  return Object.entries(args ?? {})
+    .filter(([key, value]) => !HIDDEN_ARGS.has(key) && !(key === "comment" && value === null))
+    .map(([key, value]) => ({ key, label: ARG_LABELS[key] ?? key, value: formatArg(key, value) }))
 }
 
 export function actionError(code: string): string {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { actionError, actionFields } from "@/features/assistant/labels"
+import { actionChange, actionError, actionFields } from "@/features/assistant/labels"
 
 describe("подписи действий помощника", () => {
   it("поля показываются по-русски, дата и время — как местное время", () => {
@@ -20,6 +20,13 @@ describe("подписи действий помощника", () => {
 
   it("неизвестное поле не теряется", () => {
     expect(actionFields({ extra: "x" })).toEqual([{ key: "extra", label: "extra", value: "x" }])
+  })
+
+  it("изменение показывается как «было → станет», служебные поля скрыты", () => {
+    const args = { amount: "500000", change: { label: "Сумма", before: "10 KGS", after: "500 000 KGS" } }
+    expect(actionChange(args)).toEqual(args.change)
+    expect(actionFields(args)).toEqual([])
+    expect(actionChange({ title: "Звонок" })).toBeNull()
   })
 
   it("ошибка объясняется словами, код не показывается", () => {
