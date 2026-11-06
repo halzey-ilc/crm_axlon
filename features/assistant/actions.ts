@@ -1,7 +1,7 @@
 "use server"
 
 import { isMockDataSource } from "@/config/env"
-import { decideAction, getRun, startRun, type AssistantAction, type AssistantRun } from "@/features/assistant/api/assistant-repository"
+import { decideAction, getRun, startRun, type AssistantAction, type AssistantRun, type RunContext } from "@/features/assistant/api/assistant-repository"
 import { ApiError, apiErrorMessage } from "@/lib/api/errors"
 import { getActionAuth } from "@/lib/auth/token-store"
 
@@ -30,11 +30,11 @@ async function run<T>(operation: () => Promise<T>): Promise<AssistantResult<T>> 
   }
 }
 
-export async function askAssistantAction(question: string): Promise<AssistantResult<AssistantRun>> {
+export async function askAssistantAction(question: string, context: RunContext = {}): Promise<AssistantResult<AssistantRun>> {
   const request = question.trim()
   if (request.length < 3) return { ok: false, message: "Опишите, что нужно сделать — хотя бы несколько слов.", requestId: null }
   if (request.length > 1000) return { ok: false, message: "Не длиннее 1000 символов.", requestId: null }
-  return run(async () => startRun(await getActionAuth(), request))
+  return run(async () => startRun(await getActionAuth(), request, context))
 }
 
 export async function getAssistantRunAction(runId: string): Promise<AssistantResult<AssistantRun>> {

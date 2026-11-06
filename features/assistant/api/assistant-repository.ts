@@ -21,12 +21,16 @@ export const actionSchema = z.object({
   decidedAt: z.iso.datetime({ offset: true }).nullable().optional(),
 })
 
+export const choiceSchema = z.object({ dealId: z.string(), title: z.string() })
+
 export const runSchema = z.object({
   id: z.string(),
   request: z.string(),
   status: z.enum(["pending", "submitted", "succeeded", "failed"]),
   summary: z.string().nullable(),
   actions: z.array(actionSchema),
+  /** Несколько подходящих сделок: пользователь выбирает, помощник не угадывает */
+  choices: z.array(choiceSchema).default([]),
   isMock: z.boolean(),
   provider: z.string().nullable(),
   model: z.string().nullable(),
@@ -37,11 +41,18 @@ export const runSchema = z.object({
 
 export type AssistantRun = z.infer<typeof runSchema>
 export type AssistantAction = z.infer<typeof actionSchema>
+export type AssistantChoice = z.infer<typeof choiceSchema>
+
+/** Что уточняет запрос: выбранная сделка и предыдущий запуск, который он продолжает */
+export type RunContext = { dealId?: string; previousRunId?: string }
+
+/** Ответ CRM без модели: уточнение или посчитанные системой данные */
+export const LOCAL_PROVIDER = "crm"
 
 const runPath = (runId: string) => `/api/v1/ai/agent/runs/${encodeURIComponent(runId)}/`
 
-export function startRun(auth: ApiAuth, request: string): Promise<AssistantRun> {
-  return apiRequest("/api/v1/ai/agent/runs/", { method: "POST", auth, body: { request }, schema: runSchema })
+export function startRun(auth: ApiAuth, request: string, context: RunContext = {}): Promise<AssistantRun> {
+  return apiRequest("/api/v1/ai/agent/runs/", { method: "POST", auth, body: { request, ...context }, schema: runSchema })
 }
 
 export function getRun(auth: ApiAuth, runId: string): Promise<AssistantRun> {

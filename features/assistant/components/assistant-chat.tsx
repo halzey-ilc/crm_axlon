@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Check, LoaderCircle, Send, Sparkles, X } from "lucide-react"
+import { Check, LoaderCircle, MessageSquarePlus, Send, Sparkles, X } from "lucide-react"
 
 import { StatusBadge, type StatusTone } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { routes } from "@/config/routes"
 import { askAssistantAction, decideAssistantAction, getAssistantRunAction } from "@/features/assistant/actions"
-import type { AssistantAction, AssistantRun } from "@/features/assistant/api/assistant-repository"
+import { LOCAL_PROVIDER, type AssistantAction, type AssistantChoice, type AssistantRun, type RunContext } from "@/features/assistant/api/assistant-repository"
+import { actionError, actionFields, TOOL_LABELS } from "@/features/assistant/labels"
 import { formatDateTime } from "@/lib/format"
 
 const POLL_MS = 4000
@@ -23,12 +24,6 @@ const RUN_STATUS: Record<AssistantRun["status"], { label: string; tone: StatusTo
   submitted: { label: "Думает", tone: "info" },
   succeeded: { label: "Готово", tone: "success" },
   failed: { label: "Ошибка", tone: "danger" },
-}
-
-const TOOL_LABELS: Record<string, string> = {
-  create_task: "Поставить задачу",
-  log_note: "Записать заметку",
-  request_deal_brief: "Запросить сводку по сделке",
 }
 
 const ACTION_STATUS: Record<AssistantAction["status"], { label: string; tone: StatusTone }> = {
@@ -103,10 +98,9 @@ export function AssistantChat({ initialRun, initialError }: { initialRun: Assist
     return () => clearTimeout(timer)
   }, [run, isWorking])
 
-  function ask(event: React.FormEvent) {
-    event.preventDefault()
+  function send(request: string, context: RunContext) {
     startTransition(async () => {
-      const result = await askAssistantAction(question)
+      const result = await askAssistantAction(request, context)
       if (!result.ok) {
         setFailure(result.requestId ? `${result.message} Код запроса: ${result.requestId}` : result.message)
         return
@@ -117,6 +111,22 @@ export function AssistantChat({ initialRun, initialError }: { initialRun: Assist
       remember(result.data)
       router.replace(`${routes.assistant}?run=${encodeURIComponent(result.data.id)}`, { scroll: false })
     })
+  }
+
+  function ask(event: React.FormEvent) {
+    event.preventDefault()
+    // Ответ на экране — контекст разговора: «лучше во вторник» относится к нему
+    send(question, run?.status === "succeeded" ? { previousRunId: run.id } : {})
+  }
+
+  function choose(choice: AssistantChoice) {
+    if (run) send(run.request, { dealId: choice.dealId })
+  }
+
+  function startOver() {
+    setRun(null)
+    setFailure(null)
+    router.replace(routes.assistant, { scroll: false })
   }
 
   function decide(action: AssistantAction, decision: "confirm" | "reject") {
@@ -136,14 +146,22 @@ export function AssistantChat({ initialRun, initialError }: { initialRun: Assist
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]">
       <div className="min-w-0 space-y-4">
         <form onSubmit={ask} className="space-y-2 rounded-xl p-4 ring-1 ring-border">
-          <Label htmlFor="assistant-question">Что нужно сделать?</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="assistant-question">{run?.status === "succeeded" ? "Уточните или спросите дальше" : "Что нужно сделать?"}</Label>
+            {run && (
+              <Button type="button" size="sm" variant="ghost" onClick={startOver} disabled={isPending}>
+                <MessageSquarePlus data-icon="inline-start" aria-hidden />
+                Новый разговор
+              </Button>
+            )}
+          </div>
           <Textarea
             id="assistant-question"
             rows={3}
             maxLength={1000}
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
-            placeholder="Например: поставь мне задачу перезвонить по сделке «Поставка оборудования» завтра"
+            placeholder="Например: назначь встречу по сделке Поставка оборудования во вторник в 15:00"
           />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-meta text-muted-foreground">Помощник предлагает действия — ничего не выполняется без вашего подтверждения.</p>
@@ -160,7 +178,7 @@ export function AssistantChat({ initialRun, initialError }: { initialRun: Assist
           </p>
         )}
 
-        {run && <RunCard run={run} isPending={isPending} onDecide={decide} />}
+        {run && <RunCard run={run} isPending={isPending} onDecide={decide} onChoose={choose} />}
       </div>
 
       <aside className="space-y-2">
@@ -187,8 +205,19 @@ export function AssistantChat({ initialRun, initialError }: { initialRun: Assist
   )
 }
 
-function RunCard({ run, isPending, onDecide }: { run: AssistantRun; isPending: boolean; onDecide: (action: AssistantAction, decision: "confirm" | "reject") => void }) {
+function RunCard({
+  run,
+  isPending,
+  onDecide,
+  onChoose,
+}: {
+  run: AssistantRun
+  isPending: boolean
+  onDecide: (action: AssistantAction, decision: "confirm" | "reject") => void
+  onChoose: (choice: AssistantChoice) => void
+}) {
   const status = RUN_STATUS[run.status]
+  const isLocal = run.provider === LOCAL_PROVIDER
   return (
     <section aria-label="Ответ помощника" className="space-y-3 rounded-xl p-4 ring-1 ring-border">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -206,11 +235,22 @@ function RunCard({ run, isPending, onDecide }: { run: AssistantRun; isPending: b
       )}
       {run.summary && (
         <div className="space-y-1">
-          <p className="flex items-center gap-1.5 text-xs font-medium text-primary">
-            <Sparkles className="size-3.5" aria-hidden />
-            Сгенерировано ИИ{run.isMock ? " · тестовый ответ (сервер без подключённой модели)" : ""}
-          </p>
+          {!isLocal && (
+            <p className="flex items-center gap-1.5 text-xs font-medium text-primary">
+              <Sparkles className="size-3.5" aria-hidden />
+              Сгенерировано ИИ{run.isMock ? " · тестовый ответ (сервер без подключённой модели)" : ""}
+            </p>
+          )}
           <p className="text-sm whitespace-pre-line">{run.summary}</p>
+        </div>
+      )}
+      {run.choices.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {run.choices.map((choice) => (
+            <Button key={choice.dealId} size="sm" variant="outline" onClick={() => onChoose(choice)} disabled={isPending}>
+              {choice.title}
+            </Button>
+          ))}
         </div>
       )}
       {run.actions.length > 0 && (
@@ -226,15 +266,15 @@ function RunCard({ run, isPending, onDecide }: { run: AssistantRun; isPending: b
                 {action.reason && <p className="text-meta text-muted-foreground">{action.reason}</p>}
                 {action.args && Object.keys(action.args).length > 0 && (
                   <dl className="grid grid-cols-[auto_1fr] gap-x-3 text-meta">
-                    {Object.entries(action.args).map(([key, value]) => (
-                      <div key={key} className="contents">
-                        <dt className="text-muted-foreground">{key}</dt>
-                        <dd className="min-w-0 break-words">{typeof value === "string" ? value : JSON.stringify(value)}</dd>
+                    {actionFields(action.args).map((field) => (
+                      <div key={field.key} className="contents">
+                        <dt className="text-muted-foreground">{field.label}</dt>
+                        <dd className="min-w-0 break-words">{field.value}</dd>
                       </div>
                     ))}
                   </dl>
                 )}
-                {action.errorCode && <p className="text-meta text-destructive">Причина: {action.errorCode}</p>}
+                {action.errorCode && <p className="text-meta text-destructive">{actionError(action.errorCode)}</p>}
                 {action.status === "proposed" && (
                   <div className="flex gap-2">
                     <Button size="sm" onClick={() => onDecide(action, "confirm")} disabled={isPending}>
