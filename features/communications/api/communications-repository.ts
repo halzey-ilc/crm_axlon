@@ -66,6 +66,7 @@ const conversationSchema = z.object({
   contactName: z.string().nullable(),
   status: z.enum(["open", "closed"]),
   customerId: z.string().nullable(),
+  leadId: z.string().nullable(),
   ownerUserId: z.string().nullable(),
   unreadCount: z.int(),
   lastMessageAt: z.iso.datetime({ offset: true }).nullable(),
@@ -79,6 +80,10 @@ const messageSchema = z.object({
   text: z.string(),
   status: z.enum(["received", "pending", "sent", "failed"]),
   senderUserId: z.string().nullable(),
+  failureCode: z.string().nullable(),
+  attachment: z
+    .object({ kind: z.enum(["image", "video", "audio", "document"]), contentType: z.string(), fileName: z.string(), size: z.int() })
+    .nullable(),
   createdAt: z.iso.datetime({ offset: true }),
 })
 
@@ -119,4 +124,83 @@ export async function fetchMessages(auth: ApiAuth, conversationId: string): Prom
     schema: z.object({ results: z.array(messageSchema) }),
   })
   return page.results
+}
+
+/** Лимит WhatsApp и backend на одно сообщение */
+export const MESSAGE_TEXT_MAX = 4096
+
+/** Сколько страниц сообщений читаем в окне чата; backend отдаёт от старых к новым */
+const THREAD_PAGES = 5
+
+/** Сообщения чата с начала. `truncated` — чат длиннее, самые новые не вошли */
+export async function fetchThreadMessages(auth: ApiAuth, conversationId: string): Promise<{ messages: Message[]; truncated: boolean }> {
+  const messages: Message[] = []
+  for (let page = 0; page < THREAD_PAGES; page += 1) {
+    const { results } = await apiRequest(`/api/v1/communications/conversations/${encodeURIComponent(conversationId)}/messages/`, {
+      auth,
+      query: { limit: String(MESSAGES_LIMIT), offset: String(messages.length) },
+      schema: z.object({ results: z.array(messageSchema) }),
+    })
+    messages.push(...results)
+    if (results.length < MESSAGES_LIMIT) return { messages, truncated: false }
+  }
+  return { messages, truncated: true }
+}
+
+export function fetchConversation(auth: ApiAuth, id: string): Promise<Conversation> {
+  return apiRequest(`/api/v1/communications/conversations/${encodeURIComponent(id)}/`, { auth, schema: conversationSchema })
+}
+
+export function sendMessage(auth: ApiAuth, conversationId: string, text: string): Promise<Message> {
+  return apiRequest(`/api/v1/communications/conversations/${encodeURIComponent(conversationId)}/messages/`, {
+    method: "POST",
+    auth,
+    body: { text },
+    schema: messageSchema,
+  })
+}
+
+export type ConversationCommand = "assign" | "read" | "close" | "reopen"
+
+/** Команды чата: `assign` берёт его себе, остальные меняют состояние; права проверяет backend */
+export function runConversationCommand(auth: ApiAuth, id: string, command: ConversationCommand): Promise<Conversation> {
+  return apiRequest(`/api/v1/communications/conversations/${encodeURIComponent(id)}/${command}/`, { method: "POST", auth, schema: conversationSchema })
+}
+
+const whatsappConnectionSchema = z.object({ configured: z.boolean(), connected: z.boolean(), state: z.string() })
+
+export type WhatsappConnection = z.infer<typeof whatsappConnectionSchema>
+
+/** `GET /communications/whatsapp/status/` — спрашивает провайдера, поэтому не для частого опроса */
+export function fetchWhatsappConnection(auth: ApiAuth): Promise<WhatsappConnection> {
+  return apiRequest("/api/v1/communications/whatsapp/status/", { auth, schema: whatsappConnectionSchema })
+}
+
+const whatsappQrSchema = z.object({ status: z.enum(["qr", "connected", "unavailable"]), image: z.string().nullable() })
+
+export type WhatsappQr = z.infer<typeof whatsappQrSchema>
+
+/** `GET /communications/whatsapp/qr/` — кто отсканирует код, тот подключит номер; доступ решает backend */
+export function fetchWhatsappQr(auth: ApiAuth): Promise<WhatsappQr> {
+  return apiRequest("/api/v1/communications/whatsapp/qr/", { auth, schema: whatsappQrSchema })
+}
+
+/** Файл или голосовое в чат (multipart); проверки размера и прав — на backend */
+export function sendFile(auth: ApiAuth, conversationId: string, form: FormData): Promise<Message> {
+  return apiRequest(`/api/v1/communications/conversations/${encodeURIComponent(conversationId)}/messages/`, {
+    method: "POST",
+    auth,
+    body: form,
+    schema: messageSchema,
+  })
+}
+
+/** Передать чат и его лид сотруднику: РОП внутри отдела, директор любому */
+export function transferConversation(auth: ApiAuth, id: string, ownerUserId: string): Promise<Conversation> {
+  return apiRequest(`/api/v1/communications/conversations/${encodeURIComponent(id)}/transfer/`, {
+    method: "POST",
+    auth,
+    body: { ownerUserId },
+    schema: conversationSchema,
+  })
 }

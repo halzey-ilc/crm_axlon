@@ -3,7 +3,7 @@ import { z } from "zod"
 import type { ApiAuth } from "@/lib/api/auth-session"
 import { apiRequest } from "@/lib/api/client"
 
-export const INTEGRATION_PROVIDERS = ["whatsapp", "telegram", "instagram", "telephony"] as const
+export const INTEGRATION_PROVIDERS = ["whatsapp", "green_api", "telegram", "instagram", "telephony"] as const
 export const integrationProviderSchema = z.enum(INTEGRATION_PROVIDERS)
 export type IntegrationProvider = z.infer<typeof integrationProviderSchema>
 

@@ -4,6 +4,8 @@ const nextConfig: NextConfig = {
   /* config options here */
   experimental: {
     agentFeedback: true,
+    // Файл из чата идёт через proxy: без этого тело обрезается на 10 МБ, а файл бывает до 20 МБ
+    proxyClientMaxBodySize: "25mb",
   },
   cacheComponents: true,
   async redirects() {
