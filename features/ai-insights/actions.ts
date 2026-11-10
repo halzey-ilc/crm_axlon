@@ -2,15 +2,18 @@
 
 import {
   fetchAiReport,
+  fetchCallAnalysis,
   fetchCallSummary,
   fetchDealBrief,
   fetchReplySuggestion,
   requestAiReport,
+  requestCallAnalysis,
   requestCallSummary,
   requestDealBrief,
   requestReplySuggestion,
   type AiReport,
   type AiReportKind,
+  type CallAnalysis,
   type CallSummary,
   type DealBrief,
   type ReplySuggestion,
@@ -62,4 +65,13 @@ export async function requestAiReportAction(kind: AiReportKind): Promise<AiActio
 
 export async function getAiReportAction(kind: AiReportKind): Promise<AiActionResult<AiReport | null>> {
   return run(async () => fetchAiReport(await getActionAuth(), kind))
+}
+
+export async function getCallAnalysisAction(callId: string): Promise<AiActionResult<CallAnalysis | null>> {
+  return run(async () => fetchCallAnalysis(await getActionAuth(), callId))
+}
+
+/** Разобрать звонок заново, например на кыргызском; нужна запись звонка из АТС */
+export async function requestCallAnalysisAction(callId: string, language: "ru" | "ky"): Promise<AiActionResult<CallAnalysis>> {
+  return run(async () => requestCallAnalysis(await getActionAuth(), callId, language))
 }

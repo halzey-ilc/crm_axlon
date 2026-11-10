@@ -9,9 +9,10 @@ const POLL_MS = 3_000
 /** Сколько ждать на экране; позже результат всё равно придёт уведомлением */
 const WAIT_MS = 3 * 60_000
 
-type Job = { status: "pending" | "submitted" | "succeeded" | "failed" }
+/** Любой статус, кроме итоговых, — задача ещё идёт (у разбора звонка их несколько: расшифровка, оценка) */
+type Job = { status: string }
 
-const inFlight = (job: Job | null) => job?.status === "pending" || job?.status === "submitted"
+const inFlight = (job: Job | null) => job !== null && job.status !== "succeeded" && job.status !== "failed"
 
 /** Запуск задачи ИИ и опрос до результата. Экран не блокируется; ошибка — понятным текстом */
 export function useAiJob<T extends Job>(initial: T | null, request: () => Promise<AiActionResult<T>>, load: () => Promise<AiActionResult<T | null>>) {

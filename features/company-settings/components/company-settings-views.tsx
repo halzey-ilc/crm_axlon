@@ -17,8 +17,10 @@ import {
   fetchSetupFacts,
   type JournalEntry,
 } from "@/features/company-settings/api/company-settings"
+import { fetchCallChecklist, fetchSipuniSettings } from "@/features/company-settings/api/telephony"
 import { CompanySettingsForm } from "@/features/company-settings/components/company-settings-form"
 import { JournalDateFilter } from "@/features/company-settings/components/journal-date-filter"
+import { CallChecklistForm, SipuniSettingsForm } from "@/features/company-settings/components/telephony-settings"
 import { actionLabel, AUDIT_SECTIONS, ownerChange, resourceLabel } from "@/features/company-settings/lib/audit-labels"
 import { AUDIT_JOURNAL_ROUTE, COMPANY_SETTINGS_ROUTE } from "@/features/company-settings/lib/routes"
 import { setupSteps, type SetupStepKey } from "@/features/company-settings/lib/setup-checklist"
@@ -74,7 +76,45 @@ export async function CompanySettingsView() {
       ) : (
         <ApiErrorState error={loaded.error} />
       )}
+      <TelephonySection />
     </div>
+  )
+}
+
+/** Телефония и чек-лист оценки звонков — у директора; другим ролям блока нет */
+async function TelephonySection() {
+  const auth = await getRenderAuth()
+  const [sipuni, people, checklist] = await Promise.all([
+    tryLoad(() => fetchSipuniSettings(auth)),
+    tryLoad(() => fetchJournalPeople(auth)),
+    tryLoad(() => fetchCallChecklist(auth)),
+  ])
+  if (sipuni.ok && sipuni.data === "forbidden") return null
+  return (
+    <>
+      <section className="space-y-3 rounded-xl bg-card p-4 ring-1 ring-border sm:p-6">
+        <div>
+          <h2 className="text-base font-semibold">Телефония: Sipuni</h2>
+          <p className="text-meta text-muted-foreground">
+            Звонки компании попадают в CRM сами, привязываются к клиенту и менеджеру, а ИИ расшифровывает и оценивает разговор.
+          </p>
+        </div>
+        {sipuni.ok ? (
+          <SipuniSettingsForm settings={sipuni.data === "forbidden" ? null : sipuni.data} people={people.ok ? people.data : []} />
+        ) : (
+          <ApiErrorState error={sipuni.error} bare />
+        )}
+      </section>
+      {checklist.ok && (
+        <section className="space-y-3 rounded-xl bg-card p-4 ring-1 ring-border sm:p-6">
+          <div>
+            <h2 className="text-base font-semibold">Чек-лист оценки звонков</h2>
+            <p className="text-meta text-muted-foreground">По этим пунктам ИИ проверяет каждый звонок менеджера; балл считает CRM.</p>
+          </div>
+          <CallChecklistForm initial={checklist.data} />
+        </section>
+      )}
+    </>
   )
 }
 

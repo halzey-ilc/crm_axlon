@@ -155,3 +155,39 @@ export function fetchAiReport(auth: ApiAuth, kind: AiReportKind): Promise<AiRepo
 export function requestAiReport(auth: ApiAuth, kind: AiReportKind): Promise<AiReport> {
   return apiRequest(REPORT_PATHS[kind], { method: "POST", auth, body: {}, schema: aiReportSchema })
 }
+
+const verdictSchema = z.object({
+  code: z.string(),
+  title: z.string(),
+  status: z.enum(["met", "partial", "missed", "not_applicable"]),
+  evidence: z.object({ segmentId: z.string(), quote: z.string() }).nullable(),
+  comment: z.string(),
+})
+
+/** Разбор записанного звонка: расшифровка, оценка по чек-листу и балл (балл считает CRM) */
+export const callAnalysisSchema = z.object({
+  id: z.string(),
+  status: z.enum(["pending", "transcribing", "reviewing", "succeeded", "failed"]),
+  language: z.enum(["ru", "ky"]),
+  segments: z.array(z.object({ id: z.string(), speaker: z.enum(["manager", "customer", "unknown"]), text: z.string() })),
+  review: z
+    .object({ criteria: z.array(verdictSchema), strengths: z.array(z.string()), improvements: z.array(z.string()), insufficientData: z.boolean() })
+    .nullable(),
+  score: z.number().int().nullable(),
+  isMock: z.boolean(),
+  errorCode: z.string().nullable(),
+  draft: z.boolean(),
+  finishedAt: z.iso.datetime({ offset: true }).nullable(),
+})
+
+export type CallAnalysis = z.infer<typeof callAnalysisSchema>
+
+const analysisPath = (callId: string) => `/api/v1/ai/calls/${encodeURIComponent(callId)}/analysis/`
+
+export function fetchCallAnalysis(auth: ApiAuth, callId: string): Promise<CallAnalysis | null> {
+  return latest(() => apiRequest(analysisPath(callId), { auth, schema: callAnalysisSchema }))
+}
+
+export function requestCallAnalysis(auth: ApiAuth, callId: string, language: "ru" | "ky"): Promise<CallAnalysis> {
+  return apiRequest(analysisPath(callId), { method: "POST", auth, body: { language }, schema: callAnalysisSchema })
+}

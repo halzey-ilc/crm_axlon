@@ -1,16 +1,27 @@
 import { ApiErrorState } from "@/components/shared/api-error-state"
-import { fetchAiAvailable, fetchCallSummary, fetchDealBrief } from "@/features/ai-insights/api/ai-insights"
+import { fetchAiAvailable, fetchCallAnalysis, fetchCallSummary, fetchDealBrief } from "@/features/ai-insights/api/ai-insights"
+import { CallAiAnalysis } from "@/features/ai-insights/components/call-ai-analysis"
 import { CallAiSummary } from "@/features/ai-insights/components/call-ai-summary"
 import { DealAiBrief } from "@/features/ai-insights/components/deal-ai-brief"
 import { tryLoad } from "@/lib/api/load"
 import { getRenderAuth } from "@/lib/auth/token-store"
 
-/** Блок ИИ в карточке звонка; когда ИИ не подключён, тарифом не разрешён или нет права — его нет */
-export async function CallAiSection({ callId }: { callId: string }) {
+/**
+ * Блоки ИИ в карточке звонка: оценка записи (расшифровка, чек-лист, балл) и резюме. Когда ИИ не
+ * подключён, тарифом не разрешён или нет права — их нет
+ */
+export async function CallAiSection({ callId, hasRecording = false }: { callId: string; hasRecording?: boolean }) {
   if (!(await fetchAiAvailable())) return null
-  const latest = await tryLoad(async () => fetchCallSummary(await getRenderAuth(), callId))
+  const auth = await getRenderAuth()
+  const [latest, analysis] = await Promise.all([tryLoad(() => fetchCallSummary(auth, callId)), tryLoad(() => fetchCallAnalysis(auth, callId))])
   if (!latest.ok) return <ApiErrorState error={latest.error} bare />
-  return <CallAiSummary callId={callId} initial={latest.data} />
+  const initialAnalysis = analysis.ok ? analysis.data : null
+  return (
+    <div className="space-y-3">
+      {(hasRecording || initialAnalysis) && <CallAiAnalysis callId={callId} initial={initialAnalysis} />}
+      <CallAiSummary callId={callId} initial={latest.data} />
+    </div>
+  )
 }
 
 /** Блок «Что по сделке?»; условия те же */
